@@ -1,0 +1,33 @@
+# Number of spatial cells per dimension
+nx = 50
+ny = 50
+
+# cfl number
+cfl = 2.0
+
+# Quadrature type and order.
+# Type must be 1 for "standard" or 2 for "octa" and 3 for "ico".
+quadraturetype = 2
+
+# Quadrature order determines the number of quadrature points
+quadratureorder = 4
+
+# Convolution? Will be turned off if magnitude = 0
+convolutionmagnitude = 0
+convolutionwidth = 0
+
+# Rotation = 0 yields SN 
+rotationmagnitude = 0
+
+# linesource id 1 , checkearboard id 2
+testcaseid = 1
+
+# periodic bc? if not then vacuum
+periodicXflag = 0
+periodicYflag = 0
+
+# 1D simulation flag (no real y direction)
+dim1flag = 0
+
+# perform low rank computation? Only if rank>0
+whichrank = 0

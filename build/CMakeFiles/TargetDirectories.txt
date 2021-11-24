@@ -1,0 +1,3 @@
+/home/vavrines/Coding/CSN/build/CMakeFiles/rebuild_cache.dir
+/home/vavrines/Coding/CSN/build/CMakeFiles/edit_cache.dir
+/home/vavrines/Coding/CSN/build/CMakeFiles/KiT-RT.dir
