@@ -332,22 +332,16 @@ void PrintLogHeader( std::string inputFile ) {
 
         // New design
         log->info( "------------------------------------------------------------------------" );
-        log->info( "|    _  _____ _____     ____ _____                                     |" );
-        log->info( "|   | |/ /_ _|_   _|   |  _ \\_   _|                                    |" );
-        log->info( "|   | ' / | |  | |_____| |_) || |            Version                   |" );
-        log->info( "|   | . \\ | |  | |_____|  _ < | |             0.1.0                    |" );
-        log->info( "|   |_|\\_\\___| |_|     |_| \\_\\|_|                                      |" );
+        log->info( "|                                                                      |" );
+        log->info( "|           SPM: Finite Volume Solver for Radiative Transfer           |" );
+        log->info( "|                        (c) 2021 Tianbai Xiao                         |" );
         log->info( "|                                                                      |" );
         log->info( "------------------------------------------------------------------------" );
-        log->info( "|    Copyright statement goes here                                     |" );
-        log->info( "------------------------------------------------------------------------" );
-        log->info( "|" );
         log->info( "| Git commit :\t{0}", GIT_HASH );
         log->info( "| Config file:\t{0}", inputFile );
         log->info( "| MPI Threads:\t{0}", nprocs );
         log->info( "| OMP Threads:\t{0}", omp_get_max_threads() );
-        log->info( "|" );
-        log->info( "-------------------------- Config File Info ----------------------------" );
+        log->info( "------------------------------ Config ----------------------------------" );
         log->info( "|" );
         // print file content while omitting comments
         std::ifstream ifs( inputFile );
@@ -358,7 +352,7 @@ void PrintLogHeader( std::string inputFile ) {
                 if( line[0] != '%' ) log->info( "| {0}", line );
             }
         }
-        // log->info( "------------------------------------------------------------------------" );
+        //log->info( "------------------------------------------------------------------------" );
     }
     MPI_Barrier( MPI_COMM_WORLD );
 }
