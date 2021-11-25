@@ -67,7 +67,7 @@ add_compile_definitions( GIT_HASH="${GIT_HASH}" )
 #################################################
 
 ### BUILD KIT-RT ################################
-file( GLOB_RECURSE SRCS RELATIVE ${CMAKE_SOURCE_DIR} "src/*.cpp" "include/*.h" )
+file( GLOB_RECURSE SRCS RELATIVE ${CMAKE_SOURCE_DIR} "src/*.cpp" "include/*.h" "include/*.hpp" )
 set( EXCLUDE_DIR "/gui/" )
 foreach( TMP_PATH ${SRCS} )
     string( FIND ${TMP_PATH} ${EXCLUDE_DIR} EXCLUDE_DIR_FOUND )
