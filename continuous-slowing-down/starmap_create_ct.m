@@ -1,0 +1,237 @@
+function starmap_create_ct
+%STARMAP_CREATE_WATER_PHANTOM
+%   Creates the file STARMAP_EX_WATER_PHANTOM.M, which is an
+%   example case for STARMAP_SOLVER, a second order staggered
+%   grid finite difference solver for linear hyperbolic moment
+%   approximations to radiative transfer in 3D geometry.
+%
+%   An initial beam in angle and a spatial distribution can be
+%   specified. The routine generates an initial condition and
+%   writes default functions for all other problem parameters
+%   that can later be changed in the generated example file.
+%   This routine is specific to the PN equations.
+%
+%   Based on version 1.5
+%   Copyright (c) 05/31/2014 Benjamin Seibold and Martin Frank
+%   http://www.math.temple.edu/~seibold
+%   http://www.mathcces.rwth-aachen.de/5people/frank/start
+%   Contributers: Edgar Olbrant (v1.0), Kerstin Kuepper (v1.5)
+%
+%   StaRMAP project website:
+%   http://math.temple.edu/~seibold/research/starmap/
+
+%   For license, see file starmap_solver.m, as published on
+%   http://www.math.temple.edu/~seibold/research/starmap
+
+%========================================================================
+% Problem Parameters
+%========================================================================
+par = struct(...
+'name','Phantom Test',... % Name of example
+'n_mom',13,... % Order of moment approximation
+'bc',[1 1 1],... % Type of boundary cond. (0 = periodic, 1 = extrapolation)
+'E_plot',linspace(21,0,22)... % Output energies.
+);
+
+% The beam is a Dirac in angle, times a Gaussian in space.
+phi_beam = pi;                               % Angle of beam w.r.t. x-axis.
+mu_beam = 0;                           % Cosine of the angle w.r.t z-axis.
+pos_beam = [18.5,7.5,6.6];
+space_beam = @(x,y,z)normpdf(x,pos_beam(1),.5).*...
+    ((pos_beam(2)-1)<y&y<(pos_beam(2)+1)).*...
+    ((pos_beam(3)-.9)<=z&z<=(pos_beam(3)+.9));        
+
+% Material parameters.                        
+E_tab = [5e-05;6e-05;7e-05;8e-05; % Energy range: 5e-5 MeV ... 1000 MeV 
+    9e-05;0.0001;0.000125;0.00015;0.000175;0.0002;0.00025;0.0003;0.00035;
+    0.0004;0.00045;0.0005;0.0006;0.0007;0.0008;0.0009;0.001;0.00125;
+    0.0015;0.00175;0.002;0.0025;0.003;0.0035;0.004;0.00450;0.00500;
+    0.00600;0.00700;0.00800;0.00900;0.0100;0.0125;0.0150;0.0175;0.0200;
+    0.0250;0.0300;0.0350;0.0400;0.0450;0.0500;0.0600;0.0700;0.0800;0.0900;
+    0.100;0.125;0.150;0.175;0.200;0.250;0.300;0.350;0.400;0.450;0.500;
+    0.600;0.700;0.800;0.900;1;1.25;1.50;1.75;2;2.50;3;3.50;4;4.50;5;6;7;8;
+    9;10;12.5;15;17.5;20;25;30;35;40;45;50;60;70;80;90;100;125;150;175;
+    200;250;300;350;400;450;500;600;700;800;900;1000];
+StoppingPower = @(E) StoppingPowerElectrons(E,278,'tot'); % Stopping Power.
+TransportCoef = @(E,m) TransportCoefElectronsP39(E,'tot',m); % n-th transport coefficient.
+
+ct_name = 'CT-Scan-3D';         % Containing density: Rho and grid: x,y,z.
+load(ct_name)         
+dx = x(2)-x(1); dy = y(2)-y(1); dz = z(2)-z(1);
+par.ax = [x(1)-dx/2 x(end)+dx/2 ... % coordinates of computational domain.
+    y(1)-dy/2 y(end)+dy/2 z(1)-dz/2 z(end)+dz/2]; 
+par.n = [ceil(size(Rho,1)/4),ceil(size(Rho,2)/4),ceil(size(Rho,3)/2)]; % Numbers of grid cells in each coordinate direction
+
+%========================================================================
+% Compute Initial Condition
+%========================================================================
+n_mom = par.n_mom;
+n_sys = (n_mom+1)^2;
+
+% Assemble transformation matrix
+M = sparse(zeros(n_sys)); s = size(M);
+for m = 2:n_mom+1
+    i = 1:m-1; r = (m-1)^2+2*i;
+    M(sub2ind(s,r-1,(m-1)^2+i)) = 1;
+    M(sub2ind(s,r,(m-1)^2+i)) = -1i;
+    M(sub2ind(s,r-1,m^2+1-i)) = (-1).^(m+i);
+    M(sub2ind(s,r,m^2+1-i)) = (-1).^(m+i)*1i;
+end
+M = M/sqrt(2);
+m = 1:1:n_mom+1;
+M(sub2ind(s,m.^2,(m-1).^2+m)) = 1;
+
+% Assemble untransformed moment vector
+u = zeros(n_sys,1);
+for l = 0:n_mom
+    u(l^2+1:(l+1)^2) = sph_cc(mu_beam,phi_beam+pi,l,-l:1:l)';
+end
+
+% Transform to StarMAP variables
+StarMAPmoments = M*u;
+
+%========================================================================
+% Compute Energy transformation.
+%========================================================================
+S_tab = StoppingPower(E_tab);
+E_trans = zeros(1,size(E_tab,1)); % Transformed energy.
+for i = 2:size(E_tab,1)
+    E_trans(i) = E_trans(i-1)+(E_tab(i)-E_tab(i-1))/2*(1/S_tab(i)+1/S_tab(i-1));
+end
+
+%========================================================================
+% Write Example File
+%========================================================================
+function_name = 'starmap_ex_ct_auto';
+fprintf('Writing example file %s.',[function_name,'.m']);
+fid = fopen([function_name,'.m'],'w');
+fprintf(fid,'function [x,y,z,Rho,Dose] = %s\n',function_name);
+fprintf(fid,'%s%s\n','%',upper(function_name));
+fprintf(fid,'%s\n','%   Example case for STARMAP_SOLVER, a second order staggered');
+fprintf(fid,'%s\n','%   grid finite difference solver for linear hyperbolic moment');
+fprintf(fid,'%s\n','%   approximations to radiative transfer in 3D geometry.');
+fprintf(fid,'%s\n','%');
+fprintf(fid,'%s%s%s\n','%   Created by the file ',mfilename,'.m');
+fprintf(fid,'%s\n','%');
+fprintf(fid,'%s\n','%   Copyright (c) 05/31/2014 Benjamin Seibold and Martin Frank');
+fprintf(fid,'%s\n','%   http://www.math.temple.edu/~seibold');
+fprintf(fid,'%s\n','%   http://www.mathcces.rwth-aachen.de/5people/frank/start');
+fprintf(fid,'%s\n','');
+fprintf(fid,'%s\n','%   For license, see file starmap_solver.m, as published on');
+fprintf(fid,'%s\n','%   http://www.math.temple.edu/~seibold/research/starmap');
+fprintf(fid,'%s\n','');
+fprintf(fid,'%s\n','%========================================================================');
+fprintf(fid,'%s\n','% Problem Parameters');
+fprintf(fid,'%s\n','%========================================================================');
+fprintf(fid,'%s\n','par = struct(...');
+fprintf(fid,'%s\n','''name'',''CT Test'',... % name of example');
+fprintf(fid,'%s\n','''closure'',''P'',... % type of closure (can be ''P'' or ''SP'')');
+fprintf(fid,'%s\n',['''n_mom'',',num2str(par.n_mom),',... % order of moment approximation']);
+fprintf(fid,'%s\n','''sigma_s0'',@sigma_s0,... % isotropic scattering coefficient (def. below)');
+fprintf(fid,'%s\n','''sigma_sm'',@sigma_sm,... % aniso. scattering coefficient (defined below)');
+fprintf(fid,'%s\n','''ic'',@initial,... % initial condition');
+fprintf(fid,'%s\n',['''ax'',[',num2str(par.ax,'%g '),'],... % coordinates of computational domain']);
+fprintf(fid,'%s\n',['''n'',[',num2str(par.n,'%g '),'],... % numbers of grid cells in each coordinate direction']);
+fprintf(fid,'%s\n',['''bc'',[',num2str(par.bc,'%g '), '],... % type of boundary cond. (0 = periodic, 1 = extrapolation)']);
+fprintf(fid,'%s\n',['''E_plot'',[',num2str(par.E_plot,'%g '),'],... % output times']);
+fprintf(fid,'%s\n','''output'',@output,... % output routine (defined below)');
+fprintf(fid,'%s\n','''density'',@density...');
+fprintf(fid,'%s\n',');');
+fprintf(fid,'%s\n','');
+fprintf(fid,'%s\n','%========================================================================');
+fprintf(fid,'%s\n','% Moment System Setup and Solver Execution');
+fprintf(fid,'%s\n','%========================================================================');
+fprintf(fid,'%s\n','switch par.closure                       % define closure matrix function');
+fprintf(fid,'%s\n','    case  ''P'', closurefun = ''starmap_closure_pn'';');
+fprintf(fid,'%s\n','    case ''SP'', closurefun = ''starmap_closure_spn'';');
+fprintf(fid,'%s\n','end');
+fprintf(fid,'%s\n','[par.Mx,par.My,par.Mz,par.mom_order] = feval(closurefun,par.n_mom); % compute moment matrices');
+fprintf(fid,'%s\n','');
+fprintf(fid,'%s\n','% Modify functions and run solver.');
+fprintf(fid,'%s\n','E_CutOff = max(par.E_plot);');
+fprintf(fid,'%s\n','par.t_plot = Energy2Time(par.E_plot,E_CutOff);');
+fprintf(fid,'%s\n','par.sigma_s0 = @(x,y,z,t)par.sigma_s0(x,y,z,Time2Energy(t,E_CutOff));');
+fprintf(fid,'%s\n','par.sigma_sm = @(x,y,z,m,t)par.sigma_sm(x,y,z,m,Time2Energy(t,E_CutOff));');
+fprintf(fid,'%s\n','par.int_weight = @(m,t)StoppingPower(Time2Energy(t,E_CutOff)).*(m==1);');
+fprintf(fid,'%s\n',['load(''',ct_name,''')']);
+fprintf(fid,'%s\n','par.Rho = Rho; par.x = x; par.y = y; par.z = z;');
+fprintf(fid,'%s\n','');
+fprintf(fid,'%s\n','figure');
+fprintf(fid,'%s\n','solution = starmap_solver(par);');
+fprintf(fid,'%s\n','');
+fprintf(fid,'%s\n','% Compute and plot depth dose'); 
+fprintf(fid,'%s\n','x = solution(1).x; y = solution(1).y; z = solution(1).z;');
+fprintf(fid,'%s\n','[X,Y,Z] = ndgrid(x,y,z);');
+fprintf(fid,'%s\n','Rho = density(X,Y,Z,par);');
+fprintf(fid,'%s\n','Dose = solution(1).Int./Rho;');
+fprintf(fid,'%s\n','figure, PlotChest(x,y,Dose(:,:,ceil(par.n(3)/2)),Rho(:,:,ceil(par.n(3)/2)))');
+fprintf(fid,'%s\n','title(par.name)');
+fprintf(fid,'%s\n','');
+fprintf(fid,'%s\n','%========================================================================');
+fprintf(fid,'%s\n','% Problem Specific Functions');
+fprintf(fid,'%s\n','%========================================================================');
+fprintf(fid,'%s\n','function f = sigma_s0(x,y,z,E)');
+fprintf(fid,'%s\n','% Total scattering coefficient.');
+fprintf(fid,'%s\n',['f = feval(',func2str(TransportCoef),',E,0);']);
+fprintf(fid,'%s\n','');
+fprintf(fid,'%s\n','function f = sigma_sm(x,y,z,m,E)');
+fprintf(fid,'%s\n','% Moments of scattering kernel.');
+fprintf(fid,'%s\n',['f = feval(',func2str(TransportCoef),',E,m);']);
+fprintf(fid,'%s\n','');
+fprintf(fid,'%s\n','function f = density(x,y,z,par)');
+fprintf(fid,'%s\n','% Problem specific density function.');
+fprintf(fid,'%s\n','f = interp3(par.y,par.x'',par.z,par.Rho,y,x,z,''linear'',1);');
+fprintf(fid,'%s\n','');
+fprintf(fid,'%s\n','function f = initial(x,y,z,k)');
+fprintf(fid,'%s\n','% Initial conditions (for (k-1)-st moment).');
+fprintf(fid,'%s\n',['pos_beam = [',num2str(pos_beam,'%g '),'];']');
+fprintf(fid,'%s\n',['f = feval(',func2str(space_beam),',x,y,z);']);
+fprintf(fid,'%s\n','StarMAPmoments = ['); 
+fprintf(fid,'%12.8f\n',StarMAPmoments);
+fprintf(fid,'%s\n','];');
+fprintf(fid,'%s\n','f = f*StarMAPmoments(k);');
+fprintf(fid,'%s\n','');
+fprintf(fid,'%s\n','function f = StoppingPower(E)');
+fprintf(fid,'%s\n','% Stopping Power.');
+fprintf(fid,'%s\n',['f = feval(',func2str(StoppingPower),',E);']);
+fprintf(fid,'%s\n','');
+fprintf(fid,'%s\n','function output(par,x,y,z,U,step)');
+fprintf(fid,'%s\n','% Output function showing the progress.');
+fprintf(fid,'%s\n','E = par.E_plot(step);');
+fprintf(fid,'%s\n','fprintf(''Energy:%12.2fMeV\n'',E)');
+fprintf(fid,'%s\n','');
+fprintf(fid,'%s\n','%========================================================================');
+fprintf(fid,'%s\n','% Energy transformation.');
+fprintf(fid,'%s\n','%========================================================================');
+fprintf(fid,'%s\n','function E = Time2Energy(t,E_CutOff)');
+fprintf(fid,'%s\n','% Transformation: Time to energy.');
+fprintf(fid,'%s\n','E = max(0,energyTansform(energyTansform(E_CutOff,0)-t'',1))'';');
+fprintf(fid,'%s\n','');
+fprintf(fid,'%s\n','function t = Energy2Time(E,E_CutOff)');
+fprintf(fid,'%s\n','% Transformation: Energy to time.');
+fprintf(fid,'%s\n','t = max(0,energyTansform(E_CutOff-E'',0))'';');
+fprintf(fid,'%s\n','');
+fprintf(fid,'%s\n','function TE = energyTansform(E,inv)');
+fprintf(fid,'%s\n','% Transform the energy using linear interpolation.');
+fprintf(fid,'%s\n','E_tab = [');
+fprintf(fid,'%12.8f\n',E_tab);
+fprintf(fid,'%s\n','];');
+fprintf(fid,'%s\n','E_trans = [');
+fprintf(fid,'%12.8f\n',E_trans);
+fprintf(fid,'%s\n','];');
+fprintf(fid,'%s\n','if inv==0');
+fprintf(fid,'%s\n','    TE = interp1q(E_tab,E_trans,E);');
+fprintf(fid,'%s\n','else');
+fprintf(fid,'%s\n','    TE = interp1q(E_trans,E_tab,E);');
+fprintf(fid,'%s\n','end');
+fclose(fid);
+fprintf(' Done.\n')
+
+%========================================================================
+% Functions
+%========================================================================
+function y = sph_cc(mu,phi,l,m)
+% Complex conjugates of coefficients.
+z = legendre(l,mu)'; ma = abs(m);
+y = sqrt((2*l+1)/(4*pi).*factorial(l-ma)./factorial(l+ma)).*...
+    (-1).^max(m,0).*exp(1i*m*phi).*z(ma+1);
