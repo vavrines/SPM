@@ -505,3 +505,4 @@ result/*
 !.vscode/extensions.json
 .history
 _build
+python/.ipynb_checkpoints/asSN-checkpoint.ipynb
